@@ -1,10 +1,10 @@
 === Post Kinds ===
 Contributors: dshanske
 Tags: indieweb, interaction, posts, webmention, share, like, scrobble
-Stable tag: 3.3.3
+Stable tag: 3.3.4
 Requires at least: 4.9.9
-Requires PHP: 5.4
-Tested up to: 5.2.3
+Requires PHP: 5.6
+Tested up to: 5.4.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -260,6 +260,14 @@ through future plugin updates.
 
 
 == Changelog ==
+
+= 3.3.4 ( 2020-06-28 ) =
+* Maintenance Release
+* Parse This version updated
+* Store image credit as the author
+* Show context at bottom option not respected on feeds ( props @tonzyl on first PR )
+* Fix pagination issues on custom archive pages.
+* Master branch now the trunk branch.
 
 = 3.3.3 ( 2019-09-16 ) =
 * Fix and improve view template search functionality

@@ -7,7 +7,7 @@
  * Plugin Name: Post Kinds
  * Plugin URI: https://wordpress.org/plugins/indieweb-post-kinds/
  * Description: Ever want to reply to someone else's post with a post on your own site? Or to "like" someone else's post, but with your own site?
- * Version: 3.3.3
+ * Version: 3.3.4
  * Author: David Shanske
  * Author URI: https://david.shanske.com
  * Text Domain: indieweb-post-kinds
@@ -21,7 +21,7 @@ if ( ! defined( 'POST_KINDS_KSES' ) ) {
 spl_autoload_register(
 	function ( $class ) {
 		$base_dir = trailingslashit( __DIR__ ) . 'includes/';
-		$bases    = array( 'Kind', 'Post_Kind' );
+		$bases    = array( 'Kind', 'Post_Kind', 'MF2' );
 
 		foreach ( $bases as $base ) {
 			if ( strncmp( $class, $base, strlen( $base ) ) === 0 ) {
@@ -50,7 +50,7 @@ add_action( 'plugins_loaded', array( 'Post_Kinds_Plugin', 'plugins_loaded' ), 11
 add_action( 'init', array( 'Post_Kinds_Plugin', 'init' ) );
 
 class Post_Kinds_Plugin {
-	public static $version = '3.3.3';
+	public static $version = '3.3.4';
 	public static function init() {
 		// Add Kind Taxonomy.
 		Kind_Taxonomy::init();
@@ -101,8 +101,10 @@ class Post_Kinds_Plugin {
 		$cls = get_called_class();
 		load_plugin_textdomain( 'indieweb-post-kinds', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
 
-		// Add WordPress Compatibility File for Functions Introduced Post 4.9.9
+		// Add WordPress Compatibility File for Functions Introduced Post 4.9.9.
 		require_once plugin_dir_path( __FILE__ ) . 'includes/compat.php';
+		// Parse this Compat File.
+		require_once plugin_dir_path( __FILE__ ) . 'lib/parse-this/includes/compat-functions.php';
 
 		// Add Kind Global Functions.
 		require_once plugin_dir_path( __FILE__ ) . '/includes/kind-functions.php';

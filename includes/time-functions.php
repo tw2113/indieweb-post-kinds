@@ -241,3 +241,128 @@ function display_formatted_datetime( $string ) {
 	return $date->format( get_option( 'date_format' ) ) . ' ' . $date->format( get_option( 'time_format' ) );
 }
 
+
+/**
+ * Function to divide a datetime into an array for use in a field
+ *
+ * @access public
+ *
+ * @param DateTime $datetime
+ * @return array {
+ *  @type string $date Date in Y-m-d format.
+ *  @type string $time Time in H:i:s format.
+ *  @type DateTimeZone $timezone Timezone object.
+ * }
+ */
+function divide_datetime( $datetime ) {
+	$time         = array();
+	$time['date'] = $datetime->format( 'Y-m-d' );
+	if ( '0000-01-01' === $time['date'] ) {
+		$time['date'] = '';
+	}
+	$time['time']   = $datetime->format( 'H:i:s' );
+	$time['offset'] = get_datetime_offset( $datetime );
+	return $time;
+}
+
+/**
+ * Function to build a datetime from individual pieces
+ *
+ * @access public
+ *
+ * @param string $date Date in Y-m-d format.
+ * @param string $time Time in H:i:s format.
+ * @param Kind_DateTimeZone $timezone Timezone object.
+ *
+ * @return DateTime|false DateTime object or false if not valid
+ */
+function build_datetime( $date, $time, $offset = null ) {
+	if ( empty( $date ) && empty( $time ) ) {
+		return false;
+	}
+	if ( is_string( $offset ) ) {
+		$timezone = new DateTimeZone( $offset );
+	} elseif ( $offset instanceof DateTimeZone ) {
+		$timezone = $offset;
+	} else {
+		return false;
+	}
+	if ( ! $timezone ) {
+		$timezone = wp_timezone();
+	}
+	return new DateTime( $date . 'T' . $time, $timezone );
+}
+
+
+/**
+ * Return a formatted offset from a datetime object
+ *
+ * @access public
+ *
+ * @param DateTime $datetime DateTime object or if not passed set to now and site timezone
+ *
+ * @return string|false Formatted offset or false if not valid
+ */
+function get_datetime_offset( $datetime = null ) {
+	if ( ! $datetime ) {
+		$datetime = new DateTime( 'now', wp_timezone() );
+	}
+	$seconds = $datetime->getOffset();
+	if ( false === $seconds ) {
+		return false;
+	}
+	return ( $seconds < 0 ? '-' : '+' ) . sprintf( '%02d:%02d', abs( $seconds / 60 / 60 ), abs( $seconds / 60 ) % 60 );
+}
+
+
+// Given an ISO8601 duration return an array with the pieces {
+function divide_interval( $interval ) {
+	if ( ! $interval ) {
+		return array();
+	}
+	if ( is_string( $interval ) && ! empty( $interval ) ) {
+		try {
+			$interval = new DateInterval( $interval );
+		} catch ( \Exception $e ) {
+			return array();
+		}
+	}
+	// Reading all non-zero date parts.
+	return array_filter(
+		array(
+			'Y' => $interval->y,
+			'M' => $interval->m,
+			'D' => $interval->d,
+			'H' => $interval->h,
+			'I' => $interval->i,
+			'S' => $interval->s,
+		)
+	);
+}
+
+
+// Given an array with the pieces of a duration build an ISO8601 duration
+function build_interval( $values ) {
+	$date = wp_array_slice_assoc( $values, array( 'Y', 'M', 'D' ) );
+	$time = wp_array_slice_assoc( $values, array( 'H', 'I', 'S' ) );
+	if ( ! $date || ! $time ) {
+		return '';
+	}
+	$spec = 'P';
+	// Adding each part to the spec-string.
+	foreach ( $date as $key => $value ) {
+		$spec .= $value . $key;
+	}
+	if ( count( $time ) > 0 ) {
+		$spec .= 'T';
+		foreach ( $time as $key => $value ) {
+			if ( 'I' === $key ) {
+				$spec .= $value . 'M';
+			} else {
+				$spec .= $value . $key;
+			}
+		}
+	}
+	return $spec;
+}
+

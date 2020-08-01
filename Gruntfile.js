@@ -22,7 +22,7 @@ module.exports = function(grunt) {
     wp_readme_to_markdown: {
       target: {
       	options: {
-      	  screenshot_url: '/assets/{screenshot}.png'
+      	  screenshot_url: '/.wordpress-org/{screenshot}.png'
         },
         files: {
           'readme.md': 'readme.txt'
@@ -50,31 +50,15 @@ module.exports = function(grunt) {
           'css/kind.admin.min.css': 'sass/admin.scss',       // 'destination': 'source'
         }
       }
-    },
-
-    makepot: {
-      target: {
-        options: {
-          mainFile: 'indieweb-post-kinds.php', // Main project file.
-          domainPath: '/languages',                   // Where to save the POT file.
-          potFilename: 'post_kinds.pot',
-          type: 'wp-plugin',                // Type of project (wp-plugin or wp-theme).
-          exclude: [
-            'build/.*'
-          ],
-          updateTimestamp: true             // Whether the POT-Creation-Date should be updated without other changes.
-            	}
-      }
     }
   });
 
   grunt.loadNpmTasks('grunt-wp-readme-to-markdown');
-  grunt.loadNpmTasks('grunt-wp-i18n');
   grunt.loadNpmTasks('grunt-contrib-sass');
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-eslint');
 
   // Default task(s).
-  grunt.registerTask('default', ['copy', 'wp_readme_to_markdown', 'makepot', 'sass', 'eslint']);
+  grunt.registerTask('default', ['copy', 'wp_readme_to_markdown', 'sass', 'eslint']);
 
 };

@@ -11,7 +11,7 @@ class Parse_This_MF2 {
 	/**
 	 * is this what type
 	 *
-	 * @param array $mf Parsed Microformats Array
+	 * @param array  $mf Parsed Microformats Array
 	 * @param string $type Type
 	 * @return bool
 	 */
@@ -36,7 +36,7 @@ class Parse_This_MF2 {
 			$textcontent = $content;
 		} elseif ( ! is_string( $content ) && is_array( $content ) && array_key_exists( 'value', $content ) ) {
 			if ( array_key_exists( 'html', $content ) ) {
-				$htmlcontent = trim( wp_kses_post( $content['html'] ) );
+				$htmlcontent = trim( Parse_This::clean_content( $content['html'] ) );
 				$textcontent = wp_strip_all_tags( $content['value'] );
 			} else {
 				$textcontent = trim( $content['value'] );
@@ -166,8 +166,8 @@ class Parse_This_MF2 {
 	/**
 	 *  Return an array of properties, and may contain plaintext content
 	 *
-	 * @param array       $mf
-	 * @param array       $properties
+	 * @param array $mf
+	 * @param array $properties
 	 * @return null|array
 	 */
 	public static function get_prop_array( array $mf, $properties, $args = null ) {
@@ -180,14 +180,9 @@ class Parse_This_MF2 {
 			if ( array_key_exists( $p, $mf['properties'] ) ) {
 				foreach ( $mf['properties'][ $p ] as $v ) {
 					if ( self::is_microformat( $v ) ) {
-						$data[ $p ] = self::parse_item( $v, $mf, $args );
-					} else {
-						if ( isset( $data[ $p ] ) ) {
-							$data[ $p ][] = $v;
-						} else {
-							$data[ $p ] = array( $v );
-						}
+						$v = self::parse_item( $v, $mf, $args );
 					}
+					$data[ $p ] = $v;
 				}
 			}
 		}
@@ -255,7 +250,11 @@ class Parse_This_MF2 {
 	 * @return mixed|null
 	 */
 	public static function get_published( array $mf, $ensurevalid = false, $fallback = null ) {
-		return self::get_datetime_property( 'published', $mf, $ensurevalid, $fallback );
+		$date = self::get_datetime_property( 'published', $mf, $ensurevalid, $fallback );
+		if ( $date instanceof DateTime ) {
+			return $date->format( DATE_W3C );
+		}
+		return null;
 	}
 
 	/**
@@ -267,7 +266,11 @@ class Parse_This_MF2 {
 	 * @return mixed|null
 	 */
 	public static function get_updated( array $mf, $ensurevalid = false, $fallback = null ) {
-		return self::get_datetime_property( 'updated', $mf, $ensurevalid, $fallback );
+		$date = self::get_datetime_property( 'updated', $mf, $ensurevalid, $fallback );
+		if ( $date instanceof DateTime ) {
+			return $date->format( DATE_W3C );
+		}
+		return null;
 	}
 
 	/**
@@ -277,24 +280,26 @@ class Parse_This_MF2 {
 	 * @param array                            $mf
 	 * @param bool                             $ensurevalid
 	 * @param null|string                      $fallback
-	 * @return mixed|null
+	 * @return DateTime|null
 	 */
 	public static function get_datetime_property( $name, array $mf, $ensurevalid = false, $fallback = null ) {
 		$compliment = 'published' === $name ? 'updated' : 'published';
 		if ( self::has_prop( $mf, $name ) ) {
-			$return = self::get_prop( $mf, $name ); } elseif ( self::has_prop( $mf, $compliment ) ) {
+			$return = self::get_prop( $mf, $name );
+		} elseif ( self::has_prop( $mf, $compliment ) ) {
 			$return = self::get_prop( $mf, $compliment );
-			} else {
-				return $fallback; }
-			if ( ! $ensurevalid ) {
-				return $return; } else {
-				try {
-					$date = new DateTime( $return );
-					return $date->format( DATE_W3C );
-				} catch ( Exception $e ) {
-					return $fallback;
-				}
-				}
+		} else {
+			return $fallback;
+		}
+		if ( ! $ensurevalid ) {
+			return $return;
+		} else {
+			try {
+				return new DateTime( $return );
+			} catch ( Exception $e ) {
+				return $fallback;
+			}
+		}
 	}
 
 	/**
@@ -313,8 +318,8 @@ class Parse_This_MF2 {
 	/**
 	 * Large function for fishing out author of $mf from various possible array elements.
 	 *
-	 * @param array      $item Individual item
-	 * @param array      $mf2 Overall Microformats array
+	 * @param array   $item Individual item
+	 * @param array   $mf2 Overall Microformats array
 	 * @param boolean $follow Follow author arrays
 	 */
 	public static function find_author( $item, $mf2, $follow = false ) {
@@ -748,6 +753,12 @@ class Parse_This_MF2 {
 			return self::parse_hitem( $item, $mf, $args );
 		} elseif ( self::is_type( $item, 'h-leg' ) ) {
 			return self::parse_hleg( $item, $mf, $args );
+		} elseif ( self::is_type( $item, 'h-adr' ) ) {
+			return self::parse_hadr( $item, $mf, $args );
+		} elseif ( self::is_type( $item, 'h-geo' ) ) {
+			return self::parse_hadr( $item, $mf, $args );
+		} elseif ( self::is_type( $item, 'h-measure' ) ) {
+			return self::parse_hmeasure( $item, $mf, $args );
 		}
 		return self::parse_hunknown( $item, $mf, $args );
 	}
@@ -778,7 +789,7 @@ class Parse_This_MF2 {
 		$data['author']    = self::parse_hcard( $author, $mf, $args, $data['url'] );
 		$data['content']   = self::parse_html_value( $entry, 'content' );
 		$data['summary']   = self::get_summary( $entry, $data['content'] );
-		
+
 		// If name and content are equal remove name
 		if ( self::compare( $data['name'], $data['content']['text'] ) ) {
 			unset( $data['name'] );
@@ -793,6 +804,20 @@ class Parse_This_MF2 {
 			} else {
 				$data['syndication'] = $mf['rels']['syndication'];
 			}
+		}
+		return array_filter( $data );
+	}
+
+	public static function parse_hmeasure( $measure, $mf, $args ) {
+		$data       = array(
+			'type' => 'measure',
+		);
+		$properties = array(
+			'num',
+			'unit',
+		);
+		foreach ( $properties as $property ) {
+			$data[ $property ] = self::get_plaintext( $measure, $property );
 		}
 		return array_filter( $data );
 	}
@@ -813,8 +838,8 @@ class Parse_This_MF2 {
 			$data[ $property ] = self::get_plaintext( $leg, $property );
 		}
 
-		$data['departure'] = self::get_datetime_property( 'departure', $leg, true, null );
-		$data['arrival']   = self::get_datetime_property( 'arrival', $leg, true, null );
+		$data['departure'] = self::get_datetime_property( 'departure', $leg, true, null )->format( DATE_W3C );
+		$data['arrival']   = self::get_datetime_property( 'arrival', $leg, true, null )->format( DATE_W3C );
 		$data              = array_filter( $data );
 		return $data;
 	}
@@ -916,24 +941,23 @@ class Parse_This_MF2 {
 		return array_filter( $data );
 	}
 
-	public static function parse_hevent( $entry, $mf, $args ) {
+	public static function parse_hevent( $event, $mf, $args ) {
+		if ( ! self::is_microformat( $event ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'event',
-			'name' => null,
-			'url'  => null,
 		);
-		$data       = array_merge( $data, self::parse_h( $entry, $mf, $args ) );
-		$properties = array( 'location', 'start', 'end', 'photo', 'uid', 'url' );
-		foreach ( $properties as $p ) {
-			$v = self::get_plaintext( $entry, $p );
-			if ( null !== $v ) {
-				$data[ $p ] = $v;
-			}
-		}
+		$data       = array_merge( $data, self::parse_h( $event, $mf, $args ) );
+		$properties = array( 'category', 'attendee', 'organizer', 'location', 'start', 'end', 'photo', 'uid', 'url' );
+		$data       = array_merge( $data, self::get_prop_array( $event, $properties ) );
 		return array_filter( $data );
 	}
 
 	public static function parse_hreview( $entry, $mf, $args ) {
+		if ( ! self::is_microformat( $entry ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'review',
 			'name' => null,
@@ -954,6 +978,9 @@ class Parse_This_MF2 {
 
 
 	public static function parse_hproduct( $entry, $mf, $args ) {
+		if ( ! self::is_microformat( $entry ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'product',
 			'name' => null,
@@ -974,6 +1001,9 @@ class Parse_This_MF2 {
 
 
 	public static function parse_hresume( $entry, $mf, $args ) {
+		if ( ! self::is_microformat( $entry ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'resume',
 			'name' => null,
@@ -993,6 +1023,9 @@ class Parse_This_MF2 {
 	}
 
 	public static function parse_hlisting( $entry, $mf, $args ) {
+		if ( ! self::is_microformat( $entry ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'listing',
 			'name' => null,
@@ -1011,62 +1044,79 @@ class Parse_This_MF2 {
 		return array_filter( $data );
 	}
 
-	public static function parse_hrecipe( $entry, $mf, $args ) {
+	public static function parse_hrecipe( $recipe, $mf, $args ) {
+		if ( ! self::is_microformat( $recipe ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'recipe',
 			'name' => null,
 			'url'  => null,
 		);
 		$properties = array( 'category', 'item' );
-		$data       = self::get_prop_array( $entry, $properties );
+		$data       = self::get_prop_array( $recipe, $properties );
 		$properties = array();
 		foreach ( $properties as $p ) {
-			$v = self::get_plaintext( $entry, $p );
+			$v = self::get_plaintext( $recipe, $p );
 			if ( null !== $v ) {
 				$data[ $p ] = $v;
 			}
 		}
-		$data = array_merge( $data, self::parse_h( $entry, $mf, $args ) );
+		$data = array_merge( $data, self::parse_h( $recipe, $mf, $args ) );
 		return array_filter( $data );
 	}
 
-	public static function parse_hitem( $entry, $mf, $args ) {
+	public static function parse_hitem( $item, $mf, $args ) {
+		if ( ! self::is_microformat( $item ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'item',
 			'name' => null,
 			'url'  => null,
 		);
 		$properties = array( 'category', 'item' );
-		$data       = self::get_prop_array( $entry, $properties );
+		$data       = self::get_prop_array( $item, $properties );
 		$properties = array();
 		foreach ( $properties as $p ) {
-			$v = self::get_plaintext( $entry, $p );
+			$v = self::get_plaintext( $item, $p );
 			if ( null !== $v ) {
 				$data[ $p ] = $v;
 			}
 		}
-		$data = array_merge( $data, self::parse_h( $entry, $mf, $args ) );
+		$data = array_merge( $data, self::parse_h( $item, $mf, $args ) );
 		return array_filter( $data );
 	}
 
 	public static function parse_hadr( $hadr, $mf, $args ) {
+		if ( ! self::is_microformat( $hadr ) ) {
+			return;
+		}
 		$data       = array(
 			'type' => 'adr',
-			'name' => null,
-			'url'  => null,
 		);
-		$properties = array( 'url', 'name', 'photo', 'location', 'latitude', 'longitude', 'note', 'uid', 'locality', 'region', 'country' );
+		$properties = array( 'weather', 'latitude', 'longitude', 'altitude', 'label', 'street-address', 'extended-address', 'locality', 'region', 'country-name' );
+		foreach ( $properties as $property ) {
+			$data[ $property ] = self::get_plaintext( $hadr, $property );
+		}
+		$properties = array( 'temperature', 'geo' );
+		$props      = self::get_prop_array( $hadr, $properties );
+		$data       = array_merge( $data, $props );
+		return array_filter( $data );
+	}
+
+	public static function parse_hgeo( $hgeo, $mf, $args ) {
+		if ( ! self::is_microformat( $hgeo ) ) {
+			return;
+		}
+		$data       = array(
+			'type' => 'geo',
+		);
+		$properties = array( 'latitude', 'longitude', 'altitude' );
 		foreach ( $properties as $p ) {
 			$v = self::get_plaintext( $hadr, $p );
 			if ( null !== $v ) {
-				// Make sure the URL property is actually a URL
-				if ( 'url' === $p || 'photo' === $p ) {
-					if ( wp_http_validate_url( $v ) ) {
-						$data[ $p ] = $v;
-					}
-				} else {
-					$data[ $p ] = $v;
-				}
+				$data[ $p ] = $v;
 			}
 		}
 		return array_filter( $data );
